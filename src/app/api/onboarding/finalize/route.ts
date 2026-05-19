@@ -46,7 +46,6 @@ async function getOwnerWorkspaceId(
     .eq('user_id', userId)
     .eq('role', 'owner')
     .eq('accepted', true)
-    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()) as {
     data: { workspace_id: string } | null

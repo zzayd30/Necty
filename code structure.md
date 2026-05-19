@@ -44,27 +44,15 @@ export function useAuthApi() {
 
 ### A. Zustand Stores (`/src/stores/`)
 - Global state, multi-step forms, and cached local states are managed using **Zustand**.
-- Persisted stores use the `persist` middleware with `createJSONStorage` pointing to `localStorage` (e.g., `onboardingStore.ts`).
+- **Rule:** Stores are kept in-memory to prevent state leakages and ensure a clean, session-based user flow. We do not use `localStorage` for store persistence.
 
-### B. SSR-Safe Hydration Check
-When using persisted stores under Next.js (which does Server-Side Rendering/Prerendering), `localStorage` is not available on the server.
-- **Rule:** Never check or call `useOnboardingStore.persist` operations directly during the initial render or in module scope.
-- **Rule:** Initialize `hydrated` state to `false`, and manage rehydration safely within `useEffect`:
+### B. Client-Side Mounting Check
+When using Zustand stores in components that run during Server-Side Rendering (SSR), ensure the component has mounted on the client before rendering or referencing client-only state:
 ```typescript
-const [hydrated, setHydrated] = React.useState(false);
+const [mounted, setMounted] = React.useState(false);
 
 React.useEffect(() => {
-  // Check if store has already hydrated on client mount
-  if (useOnboardingStore.persist?.hasHydrated()) {
-    setHydrated(true);
-  }
-  
-  // Set up finish handler
-  const unsubscribe = useOnboardingStore.persist?.onFinishHydration(() => {
-    setHydrated(true);
-  });
-  
-  return () => unsubscribe?.();
+  setMounted(true);
 }, []);
 ```
 

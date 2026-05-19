@@ -103,7 +103,7 @@ async function request<T>(promise: Promise<AxiosResponse<T>>, fallback: string) 
 
 export const authApi = {
   signup(payload: SignupPayload) {
-    return request<RedirectResponse>(apiClient.post("/auth/signup", payload), "Signup failed.");
+    return request<RedirectResponse & MessageResponse>(apiClient.post("/auth/signup", payload), "Signup failed.");
   },
   login(payload: LoginPayload) {
     return request<RedirectResponse>(apiClient.post("/auth/login", payload), "Login failed.");

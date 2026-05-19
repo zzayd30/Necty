@@ -193,7 +193,6 @@ export async function loginAction(
       .select('workspace_id')
       .eq('user_id', userId)
       .eq('accepted', true)
-      .order('created_at', { ascending: true })
       .limit(1)
 
     if (membershipError) {

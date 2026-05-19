@@ -29,7 +29,8 @@ export async function POST(request: Request) {
       cookieStore.delete(cookie.name)
     }
 
-    const admin = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin: any = createAdminClient()
 
     // 1. Create user WITHOUT sending Supabase email
     const { data: userData, error: userError } =
@@ -57,6 +58,9 @@ export async function POST(request: Request) {
         type: 'signup',
         email: parsed.data.email,
         password: parsed.data.password,
+        options: {
+          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/auth/confirm`,
+        },
       })
 
     if (linkError || !linkData?.properties?.action_link) {
@@ -68,7 +72,13 @@ export async function POST(request: Request) {
 
     const verificationLink = linkData.properties.action_link
 
-    // 3. Create workspace
+    // 3. Create profile
+    await admin.from('profiles').upsert({
+      id: userId,
+      full_name: parsed.data.fullName,
+    })
+
+    // 4. Create workspace
     const defaultWorkspaceName = parsed.data.fullName
       ? `${parsed.data.fullName} Workspace`
       : 'New Workspace'
@@ -79,6 +89,8 @@ export async function POST(request: Request) {
         owner_id: userId,
         business_name: defaultWorkspaceName,
         industry: 'Unspecified',
+        city: 'Unspecified',
+        state: 'Unspecified',
         plan: 'pro',
         plan_status: 'pending',
       })
@@ -92,7 +104,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // 4. Add workspace member
+    // 5. Add workspace member
     const { error: memberError } = await admin.from('workspace_members').insert({
       workspace_id: workspace.id,
       user_id: userId,
@@ -106,7 +118,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: memberError.message }, { status: 500 })
     }
 
-    // 5. Onboarding progress
+    // 6. Onboarding progress
     await admin.from('onboarding_progress').upsert(
       {
         user_id: userId,
@@ -119,17 +131,15 @@ export async function POST(request: Request) {
       { onConflict: 'user_id,workspace_id' }
     )
 
-    // 6. Profile
-    await admin.from('profiles').upsert({
-      id: userId,
-      full_name: parsed.data.fullName,
-    })
+    // 7. Send verification email using Resend
+    const { sendVerificationEmail } = await import('@/lib/email')
+    await sendVerificationEmail(parsed.data.email, verificationLink)
 
-    // 7. RETURN LINK (you will email this yourself)
+    // 8. RETURN redirect
     return NextResponse.json({
       success: true,
-      verificationLink,
-      message: 'User created. Send verification email manually.',
+      redirectTo: '/verify-email',
+      message: 'User created and verification email sent.',
     })
   } catch (error) {
     return NextResponse.json(

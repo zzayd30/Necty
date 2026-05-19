@@ -20,36 +20,22 @@ export default function PageContent() {
   const data = useOnboardingStore((s) => s.data);
   const setData = useOnboardingStore((s) => s.set);
   const goTo = useOnboardingStore((s) => s.goTo);
-  const [hydrated, setHydrated] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const [hasSession, setHasSession] = React.useState(false);
   const [initialSyncDone, setInitialSyncDone] = React.useState(false);
   const { loadProgress, saveProgress } = useOnboardingApi();
 
   React.useEffect(() => {
-    if (useOnboardingStore.persist?.hasHydrated()) {
-      setHydrated(true);
-    }
-
-    const unsubscribe = useOnboardingStore.persist?.onFinishHydration(() => {
-      setHydrated(true);
-    });
-
-    if (useOnboardingStore.persist && !useOnboardingStore.persist.hasHydrated()) {
-      useOnboardingStore.persist.rehydrate();
-    }
+    setMounted(true);
 
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
       setHasSession(Boolean(data.session));
     });
-
-    return () => {
-      unsubscribe?.();
-    };
   }, []);
 
   React.useEffect(() => {
-    if (!hydrated || !hasSession || initialSyncDone) {
+    if (!mounted || !hasSession || initialSyncDone) {
       return;
     }
 
@@ -70,30 +56,24 @@ export default function PageContent() {
         setInitialSyncDone(true);
       }
     })();
-  }, [goTo, hasSession, hydrated, initialSyncDone, setData, loadProgress]);
+  }, [goTo, hasSession, mounted, initialSyncDone, setData, loadProgress]);
 
   React.useEffect(() => {
-    if (!hydrated || !hasSession || !initialSyncDone) {
+    if (!mounted || !hasSession || !initialSyncDone) {
       return;
     }
 
-    const timer = setTimeout(() => {
-      void saveProgress({
-        step,
-        data,
-      });
-    }, 400);
+    void saveProgress({
+      step,
+      data,
+    });
+  }, [data, hasSession, mounted, initialSyncDone, step, saveProgress]);
 
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [data, hasSession, hydrated, initialSyncDone, step, saveProgress]);
-
-  if (!hydrated) {
+  if (!mounted) {
     return (
       <div className="mx-auto w-full max-w-3xl p-4">
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 text-sm text-slate-600 shadow-sm">
-          Restoring your onboarding draft...
+          Loading onboarding...
         </div>
       </div>
     );

@@ -1,247 +1,68 @@
 
-You are working inside a Next.js 13+ App Router SaaS application using Supabase Auth.
+# 🧭 Authentication & Onboarding Flow Architecture (NECTY)
 
-I need you to implement a COMPLETE authentication + onboarding system with workspace creation and onboarding persistence.
+This document defines the redesigned authentication and onboarding system flow. The goal is to separate **account creation**, **email verification**, and **workspace initialization** into clean, scalable stages.
 
-We are using:
+---
 
-- Next.js App Router
-- TypeScript
-- Supabase Auth
-- Supabase PostgreSQL database
-- Multi-tenant workspace architecture
+# 🚀 Overview
 
-DO NOT create a custom users table because Supabase auth.users is already being used.
+The system is divided into **3 main phases**:
 
-==================================================
-AUTHENTICATION FLOW
-===================
+1. **Signup Phase (Account Creation Only)**
+2. **Email Verification Phase**
+3. **Onboarding Phase (Workspace Setup)**
 
-The user signup flow should work like this:
+---
 
-1. User enters:
+# 1️⃣ Signup Phase (Account Creation Only)
 
-   - full name
-   - email
-   - password
-2. Create Supabase auth user using email/password signup
-3. Immediately after signup:
+## 🎯 Goal
 
-   - create a workspace
-   - insert owner into workspace_members
-   - create onboarding progress record
-4. The user should be allowed to continue onboarding EVEN IF email is not verified yet.
-5. The system should send a verification email in the background.
-6. The user can complete onboarding steps before verifying email.
-7. The user MUST verify email before accessing the main dashboard/features.
+Create a user account and send verification email only. No workspace or onboarding data is created at this stage.
 
-==================================================
-IMPORTANT UX REQUIREMENT
-========================
+## ⚙️ Process
 
-DO NOT force email verification before onboarding.
+When a user signs up:
 
-Correct flow:
+- Create user using Supabase Admin Auth API
+- Do NOT create:
+  - workspace
+  - workspace_members
+  - onboarding_progress
+- Generate email verification link manually
+- Send verification email using external provider (e.g., Resend)
 
-Signup
-→ Workspace creation
-→ Start onboarding
-→ Save onboarding progress
-→ Verify email
-→ Unlock dashboard
+## 🧾 Allowed Operations
 
-==================================================
-DATABASE TABLES
-===============
+- `auth.users` → create user
+- generate verification link
+- send email
 
-We already have these tables:
+## ❌ Not Allowed
 
-1. workspaces
-2. workspace_members
-3. workspace_invitations
-4. profiles
+- workspace creation
+- onboarding initialization
+- member assignment
 
-I ALSO need a new onboarding tracking table.
+## 📤 Output
 
-Create a table similar to:
+- User created in Supabase Auth
+- Verification email sent
+- User is in **unverified state**
 
-- onboarding_progress
-  OR
-- onboarding_steps
+---
 
-This table should:
+# 2️⃣ Email Verification Phase
 
-- track current onboarding step
-- track completed steps
-- allow resuming onboarding later
-- persist progress if user leaves midway
-- support total onboarding flow of 9 steps
+## 🎯 Goal
 
-==================================================
-IMPORTANT DATABASE REQUIREMENT
-==============================
+Verify the user and allow them to access onboarding.
 
-Provide ALL SQL QUERIES required for:
+## ⚙️ Process
 
-- creating onboarding table
-- creating indexes if needed
-- constraints
-- relationships with auth.users
+When user clicks verification link:
 
-Also provide any ALTER TABLE queries if existing tables need modification.
-
-==================================================
-ONBOARDING TABLE REQUIREMENTS
-=============================
-
-The onboarding table should support:
-
-- user_id (references auth.users)
-- workspace_id
-- current_step
-- completed_steps
-- onboarding_completed
-- timestamps
-
-The user should be able to:
-
-- leave onboarding midway
-- login later
-- continue from exact previous step
-
-==================================================
-SUBSCRIPTION / BILLING REQUIREMENT
-==================================
-
-Currently the subscription plan data is hardcoded in the frontend.
-
-I want this moved into the database properly.
-
-Create a products/subscription plans table and create a seeder for the initial product.
-
-The system should support future scalability for multiple plans.
-
-==================================================
-PRODUCT DETAILS
-===============
-
-Create an initial subscription product with these details:
-
-- currency: 'usd'
-- name: 'NECTY Pro'
-- description: 'NECTY Pro monthly subscription'
-- unit_amount: 199.99
-- recurring interval: 'month'
-
-==================================================
-PRODUCT TABLE REQUIREMENTS
-==========================
-
-Create a table similar to:
-
-- subscription_products
-  OR
-- billing_products
-
-The table should support:
-
-- product name
-- description
-- currency
-- amount
-- recurring interval
-- active/inactive status
-- Stripe product id
-- Stripe price id
-- timestamps
-
-==================================================
-SEEDER REQUIREMENT
-==================
-
-Create:
-
-- SQL seeder query
-  OR
-- TypeScript seeder script
-
-that inserts the initial "NECTY Pro" product into the database.
-
-The seeder should be reusable and idempotent if possible.
-
-==================================================
-AUTH REQUIREMENTS
-=================
-
-Implement:
-
-1. Signup
-2. Login
-3. Logout
-4. Session handling
-5. Protected dashboard routes
-6. Middleware protection
-7. Email verification check
-
-==================================================
-EMAIL VERIFICATION LOGIC
-========================
-
-Users should:
-
-- be allowed into onboarding without verification
-- NOT be allowed into main dashboard until verified
-
-Middleware should check:
-
-- authenticated user
-- email_confirmed_at
-
-If email is not verified:
-→ redirect to /verify-email
-
-==================================================
-PROJECT STRUCTURE
-=================
-
-Implement or modify:
-
-- lib/supabaseClient.ts
-- app/(auth)/signup/page.tsx
-- app/(auth)/login/page.tsx
-- app/onboarding/*
-- app/dashboard/page.tsx
-- middleware.ts
-- server actions or API routes for auth
-- database schema files
-- seed scripts
-
-==================================================
-TECH REQUIREMENTS
-=================
-
-- Use clean TypeScript
-- Use Supabase JS SDK
-- Use server actions where appropriate
-- Separate UI from business logic
-- Proper error handling
-- Production-ready structure
-- Scalable architecture for future multi-workspace support
-
-==================================================
-EXPECTED RESULT
-===============
-
-Implement a fully working authentication and onboarding system where:
-
-- signup creates auth user
-- workspace is automatically created
-- owner is inserted into workspace_members
-- onboarding progress is saved
-- users can resume onboarding later
-- email verification is enforced only before dashboard access
-- subscription plans are stored in database
-- product seeder exists for initial NECTY Pro plan
-- middleware protects routes properly
-
-Also provide all SQL queries needed for Supabase setup.
+- Supabase verifies the email
+- User session is established
+- User is redirected to:

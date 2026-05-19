@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+import { toast } from "react-hot-toast";
 import { useAuthApi } from "@/hooks/useAuthApi";
 
 export function SignupForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const { signup } = useAuthApi();
 
@@ -36,13 +38,43 @@ export function SignupForm() {
         password: String(formData.get("password") ?? ""),
       });
 
-      router.push(result.redirectTo ?? "/onboarding");
-      router.refresh();
+      toast.success(result.message ?? "User created! Please verify your email.");
+      setSuccessMessage(result.message ?? "User created and verification email sent.");
     } catch (err: any) {
       setError(err.message ?? "Signup failed unexpectedly.");
     } finally {
       setIsPending(false);
     }
+  }
+
+  if (successMessage) {
+    return (
+      <Card className="border-slate-200/80 bg-white/90 shadow-2xl shadow-slate-950/10 backdrop-blur-xl">
+        <CardHeader className="space-y-2 border-b border-slate-200/70 pb-6 text-center">
+          <CardTitle className="text-2xl text-slate-950">
+            Check your email
+          </CardTitle>
+          <CardDescription className="text-slate-600">
+            We&apos;ve sent a verification link to your email address.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6 text-center space-y-4">
+          <div className="flex justify-center text-indigo-600">
+            <svg className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.25-1.5a2 2 0 00-2.22 0l-2.25 1.5" />
+            </svg>
+          </div>
+          <p className="text-slate-700 text-sm">
+            Please check your inbox and spam folder to confirm your email. Once verified, you will be redirected to the onboarding flow.
+          </p>
+        </CardContent>
+        <CardFooter className="flex items-center justify-center border-t border-slate-200/70 bg-slate-50/80 px-6 py-4 text-sm text-slate-600">
+          <Link href="/login" className="font-medium text-slate-950 hover:underline">
+            Go to login
+          </Link>
+        </CardFooter>
+      </Card>
+    );
   }
 
   return (

@@ -14,10 +14,12 @@ const progressSchema = z.object({
   ),
 })
 
-async function getOwnerWorkspaceId(
+async function getOrCreateWorkspaceId(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
-  userId: string
+  userId: string,
+  email: string,
+  fullName?: string
 ) {
   const { data, error } = (await admin
     .from('workspace_members')
@@ -25,7 +27,6 @@ async function getOwnerWorkspaceId(
     .eq('user_id', userId)
     .eq('role', 'owner')
     .eq('accepted', true)
-    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle()) as {
     data: { workspace_id: string } | null
@@ -33,8 +34,68 @@ async function getOwnerWorkspaceId(
   }
 
   if (error) throw new Error(error.message)
-  if (!data?.workspace_id) throw new Error('No owner workspace found for this account.')
-  return data.workspace_id
+  if (data?.workspace_id) {
+    return data.workspace_id
+  }
+
+  // Workspace doesn't exist, let's create it!
+  const defaultWorkspaceName = fullName
+    ? `${fullName} Workspace`
+    : 'New Workspace'
+
+  const { data: workspace, error: workspaceError } = (await admin
+    .from('workspaces')
+    .insert({
+      owner_id: userId,
+      business_name: defaultWorkspaceName,
+      industry: 'Unspecified',
+      city: 'Unspecified',
+      state: 'Unspecified',
+      plan: 'pro',
+      plan_status: 'pending',
+    })
+    .select('id')
+    .single()) as {
+    data: { id: string } | null
+    error: { message: string } | null
+  }
+
+  if (workspaceError || !workspace) {
+    throw new Error(workspaceError?.message ?? 'Failed to create workspace.')
+  }
+
+  // Add workspace member
+  const { error: memberError } = await admin.from('workspace_members').insert({
+    workspace_id: workspace.id,
+    user_id: userId,
+    role: 'owner',
+    invited_email: email,
+    accepted: true,
+  })
+
+  if (memberError) {
+    await admin.from('workspaces').delete().eq('id', workspace.id)
+    throw new Error(memberError.message)
+  }
+
+  // Initialize onboarding progress
+  const { error: progressError } = await admin.from('onboarding_progress').upsert(
+    {
+      user_id: userId,
+      workspace_id: workspace.id,
+      current_step: 1,
+      completed_steps: [],
+      onboarding_completed: false,
+      onboarding_data: {},
+    },
+    { onConflict: 'user_id,workspace_id' }
+  )
+
+  if (progressError) {
+    throw new Error(progressError.message)
+  }
+
+  return workspace.id
 }
 
 export async function GET() {
@@ -51,7 +112,19 @@ export async function GET() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin: any = createAdminClient()
-    const workspaceId = await getOwnerWorkspaceId(admin, user.id)
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const workspaceId = await getOrCreateWorkspaceId(
+      admin,
+      user.id,
+      user.email ?? '',
+      profile?.full_name
+    )
+
     const { data, error } = (await admin
       .from('onboarding_progress')
       .select('current_step, onboarding_data, onboarding_completed')
@@ -109,7 +182,19 @@ export async function POST(request: Request) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin: any = createAdminClient()
-    const workspaceId = await getOwnerWorkspaceId(admin, user.id)
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const workspaceId = await getOrCreateWorkspaceId(
+      admin,
+      user.id,
+      user.email ?? '',
+      profile?.full_name
+    )
+
     const completedSteps = Array.from({ length: parsed.data.step }, (_, i) => i + 1)
 
     await admin.from('onboarding_progress').upsert(
