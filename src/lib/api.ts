@@ -28,6 +28,8 @@ export type RedirectResponse = {
 
 export type MessageResponse = {
   message?: string;
+  status?: number;
+  success?: boolean;
 };
 
 export type OkResponse = {

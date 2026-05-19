@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -20,6 +21,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    const cookieStore = await cookies()
+    // Clear any existing stale auth cookies to prevent "Invalid Refresh Token" error
+    const authCookies = cookieStore.getAll().filter((c) => c.name.startsWith('sb-'))
+    for (const cookie of authCookies) {
+      cookieStore.delete(cookie.name)
+    }
+
     const supabase = await createClient()
     const { data, error } = await supabase.auth.signInWithPassword({
       email: parsed.data.email,
@@ -38,6 +46,32 @@ export async function POST(request: Request) {
       )
     }
 
+    // 1. Check if the account is verified (email confirmed)
+    if (!data.user?.email_confirmed_at) {
+      return NextResponse.json({
+        redirectTo: '/verify-email',
+      })
+    }
+
+    // 2. Check if onboarding is completed
+    const { data: progress, error: progressError } = await supabase
+      .from('onboarding_progress')
+      .select('onboarding_completed')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (progressError) {
+      return NextResponse.json({ error: progressError.message }, { status: 500 })
+    }
+
+    const onboardingCompleted = progress?.onboarding_completed ?? false
+    if (!onboardingCompleted) {
+      return NextResponse.json({
+        redirectTo: '/onboarding',
+      })
+    }
+
+    // 3. Check if workspace is created
     const { data: memberships, error: membershipError } = await supabase
       .from('workspace_members')
       .select('workspace_id')
@@ -51,14 +85,13 @@ export async function POST(request: Request) {
     }
 
     if (!memberships?.length) {
-      return NextResponse.json(
-        { error: 'No workspace membership was found for this account.' },
-        { status: 400 }
-      )
+      return NextResponse.json({
+        redirectTo: '/onboarding',
+      })
     }
 
     return NextResponse.json({
-      redirectTo: data.user?.email_confirmed_at ? '/dashboard' : '/onboarding',
+      redirectTo: '/dashboard',
     })
   } catch (error) {
     return NextResponse.json(

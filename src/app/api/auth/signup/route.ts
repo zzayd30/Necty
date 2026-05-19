@@ -1,8 +1,8 @@
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(1).optional(),
@@ -22,37 +22,58 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = await createClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const admin: any = createAdminClient()
+    const cookieStore = await cookies()
 
-    const { data, error } = await supabase.auth.signUp({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      options: {
-        data: {
-          full_name: parsed.data.fullName,
-        },
-      },
-    })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    const authCookies = cookieStore.getAll().filter((c) => c.name.startsWith('sb-'))
+    for (const cookie of authCookies) {
+      cookieStore.delete(cookie.name)
     }
 
-    if (!data.user) {
+    const admin = createAdminClient()
+
+    // 1. Create user WITHOUT sending Supabase email
+    const { data: userData, error: userError } =
+      await admin.auth.admin.createUser({
+        email: parsed.data.email,
+        password: parsed.data.password,
+        email_confirm: false,
+        user_metadata: {
+          full_name: parsed.data.fullName,
+        },
+      })
+
+    if (userError || !userData.user) {
       return NextResponse.json(
-        { error: 'Unable to initialize your account. Please try again.' },
+        { error: userError?.message ?? 'Unable to create user.' },
         { status: 400 }
       )
     }
 
-    const userId = data.user.id
+    const userId = userData.user.id
+
+    // 2. Generate verification link (NO email sent by Supabase)
+    const { data: linkData, error: linkError } =
+      await admin.auth.admin.generateLink({
+        type: 'signup',
+        email: parsed.data.email,
+        password: parsed.data.password,
+      })
+
+    if (linkError || !linkData?.properties?.action_link) {
+      return NextResponse.json(
+        { error: linkError?.message ?? 'Failed to generate verification link.' },
+        { status: 500 }
+      )
+    }
+
+    const verificationLink = linkData.properties.action_link
+
+    // 3. Create workspace
     const defaultWorkspaceName = parsed.data.fullName
       ? `${parsed.data.fullName} Workspace`
       : 'New Workspace'
 
-    const { data: workspace, error: workspaceError } = (await admin
+    const { data: workspace, error: workspaceError } = await admin
       .from('workspaces')
       .insert({
         owner_id: userId,
@@ -62,10 +83,7 @@ export async function POST(request: Request) {
         plan_status: 'pending',
       })
       .select('id')
-      .single()) as {
-      data: { id: string } | null
-      error: { message: string } | null
-    }
+      .single()
 
     if (workspaceError || !workspace) {
       return NextResponse.json(
@@ -74,6 +92,7 @@ export async function POST(request: Request) {
       )
     }
 
+    // 4. Add workspace member
     const { error: memberError } = await admin.from('workspace_members').insert({
       workspace_id: workspace.id,
       user_id: userId,
@@ -87,7 +106,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: memberError.message }, { status: 500 })
     }
 
-    const { error: progressError } = await admin.from('onboarding_progress').upsert(
+    // 5. Onboarding progress
+    await admin.from('onboarding_progress').upsert(
       {
         user_id: userId,
         workspace_id: workspace.id,
@@ -99,16 +119,18 @@ export async function POST(request: Request) {
       { onConflict: 'user_id,workspace_id' }
     )
 
-    if (progressError) {
-      return NextResponse.json({ error: progressError.message }, { status: 500 })
-    }
-
+    // 6. Profile
     await admin.from('profiles').upsert({
       id: userId,
       full_name: parsed.data.fullName,
     })
 
-    return NextResponse.json({ redirectTo: '/onboarding' })
+    // 7. RETURN LINK (you will email this yourself)
+    return NextResponse.json({
+      success: true,
+      verificationLink,
+      message: 'User created. Send verification email manually.',
+    })
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Signup failed unexpectedly.' },

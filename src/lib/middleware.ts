@@ -41,23 +41,68 @@ export async function updateSession(request: NextRequest) {
 
   const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
   const isVerifyEmailRoute = request.nextUrl.pathname.startsWith('/verify-email')
+  const isOnboardingRoute = request.nextUrl.pathname.startsWith('/onboarding')
 
-  if (!user && (isDashboardRoute || isVerifyEmailRoute)) {
+  function redirectWithCookies(path: string) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    url.pathname = path
+    const redirectResponse = NextResponse.redirect(url)
+    
+    // Copy updated cookies from supabaseResponse
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value)
+    })
+    
+    return redirectResponse
   }
 
-  if (user && isDashboardRoute && !user.email_confirmed_at) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/verify-email'
-    return NextResponse.redirect(url)
+  // 1. If not logged in:
+  if (!user) {
+    if (isDashboardRoute || isVerifyEmailRoute || isOnboardingRoute) {
+      return redirectWithCookies('/login')
+    }
+    return supabaseResponse
   }
 
-  if (user && isVerifyEmailRoute && user.email_confirmed_at) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // 2. If logged in:
+  const isConfirmed = Boolean(user.email_confirmed_at)
+
+  // 2a. If not verified (email unconfirmed):
+  if (!isConfirmed) {
+    if (!isVerifyEmailRoute) {
+      return redirectWithCookies('/verify-email')
+    }
+    return supabaseResponse
+  }
+
+  // 2b. If verified:
+  // Query onboarding progress and workspace membership
+  const { data: progress } = await supabase
+    .from('onboarding_progress')
+    .select('onboarding_completed')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const { data: memberships } = await supabase
+    .from('workspace_members')
+    .select('workspace_id')
+    .eq('user_id', user.id)
+    .eq('accepted', true)
+    .limit(1)
+
+  const isOnboardingCompleted = Boolean(progress?.onboarding_completed)
+  const hasWorkspace = Boolean(memberships && memberships.length > 0)
+
+  if (!isOnboardingCompleted || !hasWorkspace) {
+    // If onboarding is incomplete or workspace is not created, they must be on /onboarding
+    if (!isOnboardingRoute) {
+      return redirectWithCookies('/onboarding')
+    }
+  } else {
+    // Onboarding is completed and workspace is created -> they must not be on /onboarding or /verify-email
+    if (isOnboardingRoute || isVerifyEmailRoute) {
+      return redirectWithCookies('/dashboard')
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

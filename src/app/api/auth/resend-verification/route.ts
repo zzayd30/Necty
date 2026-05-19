@@ -28,5 +28,9 @@ export async function POST() {
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  return NextResponse.json({ message: 'Verification email sent. Check your inbox and spam folder.' })
+  return NextResponse.json({
+    message: 'Verification email sent. Check your inbox and spam folder.',
+    status: 200,
+    success: true,
+  })
 }
