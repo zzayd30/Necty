@@ -12,10 +12,11 @@ import Step6 from "@/components/onboarding/Step6";
 import Step7 from "@/components/onboarding/Step7";
 import Step8 from "@/components/onboarding/Step8";
 import Step9 from "@/components/onboarding/Step9";
-
+import { useRouter } from "next/navigation";
 import { useOnboardingApi } from "@/hooks/useOnboardingApi";
 
 export default function PageContent() {
+  const router = useRouter();
   const step = useOnboardingStore((s) => s.step);
   const data = useOnboardingStore((s) => s.data);
   const setData = useOnboardingStore((s) => s.set);
@@ -44,6 +45,13 @@ export default function PageContent() {
       try {
         const progress = await loadProgress();
 
+        console.log("Progress data on onboarding load:", progress);
+
+        if (progress.completed) {
+          router.replace("/dashboard");
+          return;
+        }
+
         if (progress.step) {
           goTo(progress.step);
         }
@@ -57,7 +65,7 @@ export default function PageContent() {
         setInitialSyncDone(true);
       }
     })();
-  }, [goTo, hasSession, mounted, initialSyncDone, setData, loadProgress]);
+  }, [goTo, hasSession, mounted, initialSyncDone, setData, loadProgress, router]);
 
   React.useEffect(() => {
     if (!mounted || !hasSession || !initialSyncDone) {

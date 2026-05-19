@@ -38,17 +38,12 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
-  if (pathname.startsWith('/api/') || pathname.startsWith('/auth/confirm')) {
-    return supabaseResponse
-  }
-
-  const isDashboardRoute = pathname.startsWith('/dashboard')
-  const isVerifyEmailRoute = pathname.startsWith('/verify-email')
-  const isOnboardingRoute = pathname.startsWith('/onboarding')
-  const isLoginRoute = pathname === '/login'
-  const isSignupRoute = pathname === '/signup'
+  console.log("User: ", user) 
+  const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
+  const isVerifyEmailRoute = request.nextUrl.pathname.startsWith('/verify-email')
+  const isOnboardingRoute = request.nextUrl.pathname.startsWith('/onboarding')
+  const isLoginRoute = request.nextUrl.pathname === '/login'
+  const isSignupRoute = request.nextUrl.pathname === '/signup'
 
   function redirectWithCookies(path: string) {
     const url = request.nextUrl.clone()
