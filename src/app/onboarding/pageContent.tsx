@@ -25,32 +25,37 @@ export default function PageContent() {
   const [hasSession, setHasSession] = React.useState(false);
   const [authChecked, setAuthChecked] = React.useState(false);
   const [initialSyncDone, setInitialSyncDone] = React.useState(false);
-  const [querySessionId, setQuerySessionId] = React.useState<string | null>(null);
+  const [querySessionId, setQuerySessionId] = React.useState<string | null>(
+    null,
+  );
   const { loadProgress, saveProgress } = useOnboardingApi();
 
   React.useEffect(() => {
     setMounted(true);
 
-    const href = typeof window !== 'undefined' ? window.location.href : 'unknown';
-    console.log('[onboarding] mount', { href });
+    const href =
+      typeof window !== "undefined" ? window.location.href : "unknown";
+    console.log("[onboarding] mount", { href });
 
-    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-    const sessionId = params.get('session_id');
+    const params = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    const sessionId = params.get("session_id");
     setQuerySessionId(sessionId);
-    console.log('[onboarding] query params', { session_id: sessionId });
+    console.log("[onboarding] query params", { session_id: sessionId });
 
     const supabase = createClient();
     supabase.auth
       .getSession()
       .then(({ data }) => {
-        console.log('[onboarding] supabase session', data.session);
+        console.log("[onboarding] supabase session", data.session);
         setHasSession(Boolean(data.session));
       })
       .catch((err) => {
-        console.error('[onboarding] supabase.getSession error', err);
+        console.error("[onboarding] supabase.getSession error", err);
       })
       .finally(() => {
-        console.log('[onboarding] auth checked');
+        console.log("[onboarding] auth checked");
         setAuthChecked(true);
       });
   }, [router]);
@@ -60,17 +65,23 @@ export default function PageContent() {
       return;
     }
 
-    console.log('[onboarding] loading progress', { mounted, hasSession, initialSyncDone });
+    console.log("[onboarding] loading progress", {
+      mounted,
+      hasSession,
+      initialSyncDone,
+    });
 
     void (async () => {
       try {
         const progress = await loadProgress();
 
-        console.log('[onboarding] progress loaded', progress);
+        console.log("[onboarding] progress loaded", progress);
 
         if (progress.completed) {
-          console.log('[onboarding] onboarding already completed, redirecting to dashboard');
-          router.replace('/dashboard');
+          console.log(
+            "[onboarding] onboarding already completed, redirecting to dashboard",
+          );
+          router.replace("/dashboard");
           return;
         }
 
@@ -82,31 +93,40 @@ export default function PageContent() {
           setData(progress.data);
         }
       } catch (error) {
-        console.error('[onboarding] loadProgress error', error);
+        console.error("[onboarding] loadProgress error", error);
       } finally {
-        console.log('[onboarding] initial sync done');
+        console.log("[onboarding] initial sync done");
         setInitialSyncDone(true);
       }
     })();
-  }, [goTo, hasSession, mounted, initialSyncDone, setData, loadProgress, router]);
+  }, [
+    goTo,
+    hasSession,
+    mounted,
+    initialSyncDone,
+    setData,
+    loadProgress,
+    router,
+  ]);
 
   React.useEffect(() => {
     if (!mounted || !hasSession || !initialSyncDone) {
       return;
     }
+    console.log("[onboarding] step or data changed", { step, data });
 
     if (step === 1 && Object.keys(data).length === 0) {
-      console.log('[onboarding] skip saveProgress because step 1 and no data');
+      console.log("[onboarding] skip saveProgress because step 1 and no data");
       return;
     }
 
-    console.log('[onboarding] saving progress', { step, data });
+    console.log("[onboarding] saving progress", { step, data });
 
     void saveProgress({
       step,
       data,
     }).catch((err) => {
-      console.error('[onboarding] saveProgress error', err);
+      console.error("[onboarding] saveProgress error", err);
     });
   }, [data, hasSession, mounted, initialSyncDone, step, saveProgress]);
 
@@ -121,7 +141,7 @@ export default function PageContent() {
             <p>authChecked: {String(authChecked)}</p>
             <p>hasSession: {String(hasSession)}</p>
             <p>initialSyncDone: {String(initialSyncDone)}</p>
-            <p>session_id: {querySessionId ?? 'none'}</p>
+            <p>session_id: {querySessionId ?? "none"}</p>
             <p>step: {step}</p>
             <p>data keys: {Object.keys(data).length}</p>
           </div>

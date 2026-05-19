@@ -36,14 +36,14 @@ export default async function DashboardPage(props: {
       const stripe = new Stripe(stripeSecret);
       try {
         const session = await stripe.checkout.sessions.retrieve(sessionId, {
-          expand: ['customer'],
+          expand: ["customer"],
         });
 
         const paymentSucceeded =
-          session.payment_status === 'paid' || session.status === 'complete';
+          session.payment_status === "paid" || session.status === "complete";
 
         const customerId =
-          typeof session.customer === 'string'
+          typeof session.customer === "string"
             ? session.customer
             : session.customer?.id;
 
@@ -54,21 +54,24 @@ export default async function DashboardPage(props: {
 
           if (workspaceId) {
             await admin
-              .from('workspaces')
+              .from("workspaces")
               .update({
-                plan_status: 'active',
+                plan_status: "active",
                 ...(customerId ? { stripe_customer_id: customerId } : {}),
               })
-              .eq('id', workspaceId);
+              .eq("id", workspaceId);
           }
 
           await admin
-            .from('stripe_checkouts')
-            .update({ status: 'succeeded' })
-            .eq('session_id', sessionId);
+            .from("stripe_checkouts")
+            .update({ status: "succeeded" })
+            .eq("session_id", sessionId);
         }
       } catch (err) {
-        console.error('Failed to reconcile checkout session on dashboard load:', err);
+        console.error(
+          "Failed to reconcile checkout session on dashboard load:",
+          err,
+        );
       }
     }
   }

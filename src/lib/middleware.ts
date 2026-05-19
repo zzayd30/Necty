@@ -1,6 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { createAdminClient } from '@/lib/supabase/admin'
+
+type OnboardingProgressRow = {
+  onboarding_completed: boolean | null
+}
+
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   if (pathname.startsWith('/api/') || pathname.startsWith('/auth/confirm')) {
@@ -55,12 +61,12 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = path
     const redirectResponse = NextResponse.redirect(url)
-    
+
     // Copy updated cookies from supabaseResponse
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie.name, cookie.value)
     })
-    
+
     return redirectResponse
   }
 
@@ -85,32 +91,72 @@ export async function updateSession(request: NextRequest) {
 
   // 2b. If verified:
   // Query onboarding progress and workspace membership
-  const { data: progress } = await supabase
+  // Use the service-role client here so RLS doesn't hide valid workspace rows
+  const admin = createAdminClient()
+
+  const { data: progress, error: progressError } = (await admin
     .from('onboarding_progress')
     .select('onboarding_completed')
     .eq('user_id', user.id)
-    .maybeSingle()
+    .maybeSingle()) as {
+      data: OnboardingProgressRow | null
+      error: { message: string } | null
+    }
 
-  const { data: memberships } = await supabase
+  const { data: memberships, error: membershipsError } = await admin
     .from('workspace_members')
     .select('workspace_id')
     .eq('user_id', user.id)
     .eq('accepted', true)
     .limit(1)
 
-  const isOnboardingCompleted = Boolean(progress?.onboarding_completed)
+  const isOnboardingCompleted = progress?.onboarding_completed === true
+  const hasOnboardingRow = progress !== null && progress !== undefined
   const hasWorkspace = Boolean(memberships && memberships.length > 0)
+  // Debugging info: log user's onboarding and workspace state to server logs
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[middleware] user:', { id: user?.id })
+    // eslint-disable-next-line no-console
+    console.log('[middleware] onboarding_completed, hasWorkspace:', {
+      onboarding_completed: progress?.onboarding_completed,
+      hasWorkspace: memberships?.length ?? 0,
+    })
+  } catch (err) {
+    // ignore logging errors
+  }
 
-  if (!isOnboardingCompleted || !hasWorkspace) {
-    // If onboarding is incomplete, restrict to /onboarding
+  // Additional raw debug output (may expose PII in logs) to diagnose missing rows
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[middleware] raw progress:', { progress, progressError })
+    // eslint-disable-next-line no-console
+    console.log('[middleware] raw memberships:', { memberships, membershipsError })
+
+    const { data: ownerWorkspaces, error: ownerWorkspaceError } = await admin
+      .from('workspaces')
+      .select('id')
+      .eq('owner_id', user.id)
+      .limit(1)
+
+    // eslint-disable-next-line no-console
+    console.log('[middleware] ownerWorkspaces:', { ownerWorkspaces, ownerWorkspaceError })
+  } catch (err) {
+    // ignore logging errors
+  }
+
+  // If onboarding is not completed or the onboarding row does not exist yet,
+  // restrict protected routes to onboarding.
+  if (!isOnboardingCompleted) {
     if (isDashboardRoute || isLoginRoute || isSignupRoute || isVerifyEmailRoute) {
       return redirectWithCookies('/onboarding')
     }
-  } else {
-    // Onboarding is completed, restrict from /onboarding, /verify-email, /login, /signup
-    if (isOnboardingRoute || isVerifyEmailRoute || isLoginRoute || isSignupRoute) {
-      return redirectWithCookies('/dashboard')
-    }
+    return supabaseResponse
+  }
+
+  // Onboarding is completed — restrict /onboarding and auth routes.
+  if (isOnboardingRoute || isVerifyEmailRoute || isLoginRoute || isSignupRoute) {
+    return redirectWithCookies('/dashboard')
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

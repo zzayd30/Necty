@@ -19,7 +19,17 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   if (user) {
-    redirect("/dashboard");
+    const { data: progress } = await supabase
+      .from("onboarding_progress")
+      .select("onboarding_completed")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (progress?.onboarding_completed) {
+      redirect("/dashboard");
+    }
+
+    redirect("/onboarding");
   }
 
   return (

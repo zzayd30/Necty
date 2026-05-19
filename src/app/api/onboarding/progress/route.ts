@@ -29,9 +29,9 @@ async function getOrCreateWorkspaceId(
     .eq('accepted', true)
     .limit(1)
     .maybeSingle()) as {
-    data: { workspace_id: string } | null
-    error: { message: string } | null
-  }
+      data: { workspace_id: string } | null
+      error: { message: string } | null
+    }
 
   if (error) throw new Error(error.message)
   if (data?.workspace_id) {
@@ -56,9 +56,9 @@ async function getOrCreateWorkspaceId(
     })
     .select('id')
     .single()) as {
-    data: { id: string } | null
-    error: { message: string } | null
-  }
+      data: { id: string } | null
+      error: { message: string } | null
+    }
 
   if (workspaceError || !workspace) {
     throw new Error(workspaceError?.message ?? 'Failed to create workspace.')
@@ -131,15 +131,15 @@ export async function GET() {
       .eq('user_id', user.id)
       .eq('workspace_id', workspaceId)
       .maybeSingle()) as {
-      data:
+        data:
         | {
-            current_step: number | null
-            onboarding_data: OnboardingData | null
-            onboarding_completed: boolean | null
-          }
+          current_step: number | null
+          onboarding_data: OnboardingData | null
+          onboarding_completed: boolean | null
+        }
         | null
-      error: { message: string } | null
-    }
+        error: { message: string } | null
+      }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -201,14 +201,14 @@ export async function POST(request: Request) {
       .eq('user_id', user.id)
       .eq('workspace_id', workspaceId)
       .maybeSingle()) as {
-      data:
+        data:
         | {
-            current_step: number | null
-            onboarding_data: OnboardingData | null
-          }
+          current_step: number | null
+          onboarding_data: OnboardingData | null
+        }
         | null
-      error: { message: string } | null
-    }
+        error: { message: string } | null
+      }
 
     if (existingProgressError) {
       throw new Error(existingProgressError.message)
