@@ -1,68 +1,82 @@
 
-# 🧭 Authentication & Onboarding Flow Architecture (NECTY)
+I'm facing a redirect loop issue in a Next.js 15 App Router project after Stripe checkout.
 
-This document defines the redesigned authentication and onboarding system flow. The goal is to separate **account creation**, **email verification**, and **workspace initialization** into clean, scalable stages.
+Current flow:
 
----
+* Stripe redirects to:
+  `/onboarding?session_id={CHECKOUT_SESSION_ID}`
 
-# 🚀 Overview
+My `app/onboarding/page.tsx` is a Server Component and uses async `searchParams`:
 
-The system is divided into **3 main phases**:
+```tsx
+import { redirect } from "next/navigation";
+import PageContent from "./pageContent";
 
-1. **Signup Phase (Account Creation Only)**
-2. **Email Verification Phase**
-3. **Onboarding Phase (Workspace Setup)**
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session_id?: string }>;
+}) {
+  const params = await searchParams;
+  const sessionId = params.session_id;
 
----
+  console.log("[onboarding] params:", params);
 
-# 1️⃣ Signup Phase (Account Creation Only)
+  if (sessionId) {
+    console.log("[onboarding] redirecting:", sessionId);
 
-## 🎯 Goal
+    redirect(
+      `/dashboard?session_id=${encodeURIComponent(sessionId)}`
+    );
+  }
 
-Create a user account and send verification email only. No workspace or onboarding data is created at this stage.
+  return <PageContent />;
+}
+```
 
-## ⚙️ Process
+Server logs confirm:
 
-When a user signs up:
+```txt
+[onboarding] params: {session_id: "..."}
+[onboarding] redirecting: ...
+```
 
-- Create user using Supabase Admin Auth API
-- Do NOT create:
-  - workspace
-  - workspace_members
-  - onboarding_progress
-- Generate email verification link manually
-- Send verification email using external provider (e.g., Resend)
+So the server redirect code executes.
 
-## 🧾 Allowed Operations
+However the browser does NOT navigate. Instead I get:
 
-- `auth.users` → create user
-- generate verification link
-- send email
+```txt
+Throttling navigation to prevent the browser from hanging
+replaceState @ app-router.tsx
+```
 
-## ❌ Not Allowed
+I also noticed `pageContent.tsx` mounts repeatedly:
 
-- workspace creation
-- onboarding initialization
-- member assignment
+```txt
+mount
+mount
+redirecting
+mount
+mount
+```
 
-## 📤 Output
+There may also be client-side redirect logic using `router.push`, `router.replace`, `window.location`, `useSearchParams`, or `useEffect`.
 
-- User created in Supabase Auth
-- Verification email sent
-- User is in **unverified state**
+I suspect an infinite navigation loop where:
 
----
+1. `/onboarding?session_id=xxx`
+2. server redirects → `/dashboard?session_id=xxx`
+3. client code redirects again
+4. app-router repeatedly calls replaceState
+5. browser throttles navigation
 
-# 2️⃣ Email Verification Phase
+Please inspect the onboarding and dashboard flow and identify:
 
-## 🎯 Goal
+* all redirect/navigation calls
+* client redirects in `pageContent.tsx`
+* redirect loops in `dashboard`
+* useEffect dependencies causing repeated navigation
+* StrictMode double mounting issues
+* any App Router misuse in Next.js 15
 
-Verify the user and allow them to access onboarding.
-
-## ⚙️ Process
-
-When user clicks verification link:
-
-- Supabase verifies the email
-- User session is established
-- User is redirected to:
+Suggest the exact code changes needed to stop the loop and make the server redirect work properly.

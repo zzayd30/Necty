@@ -21,9 +21,8 @@ type ActiveSubscriptionProduct = Omit<SubscriptionProduct, 'stripe_price_id'> & 
 
 const finalSchema = z.object({
   business_name: z.string().min(1),
-  client_name: z.string().min(1),
   industry: z.string().min(1),
-  custom_industry: z.string().optional(),
+  custom_industry: z.string().nullable().optional(),
   city: z.string().min(1),
   state: z.string().min(1),
   service_area_radius: z.string().optional(),
@@ -48,9 +47,9 @@ async function getOwnerWorkspaceId(
     .eq('accepted', true)
     .limit(1)
     .maybeSingle()) as {
-    data: { workspace_id: string } | null
-    error: { message: string } | null
-  }
+      data: { workspace_id: string } | null
+      error: { message: string } | null
+    }
 
   if (error) throw new Error(error.message)
   if (!data?.workspace_id) throw new Error('No owner workspace found for this account.')
@@ -67,9 +66,9 @@ async function getActiveProduct(
     .eq('code', 'NECTY_PRO_MONTHLY')
     .eq('is_active', true)
     .maybeSingle()) as {
-    data: SubscriptionProduct | null
-    error: { message: string } | null
-  }
+      data: SubscriptionProduct | null
+      error: { message: string } | null
+    }
 
   if (error) throw new Error(error.message)
   if (!data) throw new Error('No active billing product found.')

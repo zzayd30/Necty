@@ -22,9 +22,8 @@ type SubscriptionProduct = {
 
 const finalSchema = z.object({
   business_name: z.string().min(1),
-  client_name: z.string().min(1),
   industry: z.string().min(1),
-  custom_industry: z.string().optional(),
+  custom_industry: z.string().nullable().optional(),
   city: z.string().min(1),
   state: z.string().min(1),
   service_area_radius: z.string().optional(),
@@ -49,9 +48,9 @@ async function getOwnerWorkspaceId(
     .eq('accepted', true)
     .limit(1)
     .maybeSingle()) as {
-    data: { workspace_id: string } | null
-    error: { message: string } | null
-  }
+      data: { workspace_id: string } | null
+      error: { message: string } | null
+    }
 
   if (membershipError) {
     throw new Error(membershipError.message)
@@ -91,15 +90,15 @@ export async function loadOnboardingProgress(): Promise<{
       .eq('user_id', user.id)
       .eq('workspace_id', workspaceId)
       .maybeSingle()) as {
-      data:
+        data:
         | {
-            current_step: number | null
-            onboarding_data: OnboardingData | null
-            onboarding_completed: boolean | null
-          }
+          current_step: number | null
+          onboarding_data: OnboardingData | null
+          onboarding_completed: boolean | null
+        }
         | null
-      error: { message: string } | null
-    }
+        error: { message: string } | null
+      }
 
     if (progressError) {
       return { step: 1, data: {}, completed: false, error: progressError.message }
@@ -207,9 +206,9 @@ export async function getActiveSubscriptionProduct(): Promise<{
       .eq('code', 'NECTY_PRO_MONTHLY')
       .eq('is_active', true)
       .maybeSingle()) as {
-      data: SubscriptionProduct | null
-      error: { message: string } | null
-    }
+        data: SubscriptionProduct | null
+        error: { message: string } | null
+      }
 
     if (error) {
       return { product: null, error: error.message }
@@ -308,19 +307,19 @@ export async function finalizeOnboarding(
     line_items: product.stripe_price_id
       ? [{ price: product.stripe_price_id, quantity: 1 }]
       : [
-          {
-            price_data: {
-              currency: product.currency,
-              product_data: {
-                name: product.name,
-                description: product.description ?? undefined,
-              },
-              unit_amount: product.unit_amount_cents,
-              recurring: { interval: product.recurring_interval },
+        {
+          price_data: {
+            currency: product.currency,
+            product_data: {
+              name: product.name,
+              description: product.description ?? undefined,
             },
-            quantity: 1,
+            unit_amount: product.unit_amount_cents,
+            recurring: { interval: product.recurring_interval },
           },
-        ],
+          quantity: 1,
+        },
+      ],
     success_url: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/onboarding`,
     metadata: {

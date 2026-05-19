@@ -2,6 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  if (pathname.startsWith('/api/') || pathname.startsWith('/auth/confirm')) {
+    return NextResponse.next({
+      request,
+    })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -38,7 +45,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  console.log("User: ", user) 
   const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
   const isVerifyEmailRoute = request.nextUrl.pathname.startsWith('/verify-email')
   const isOnboardingRoute = request.nextUrl.pathname.startsWith('/onboarding')

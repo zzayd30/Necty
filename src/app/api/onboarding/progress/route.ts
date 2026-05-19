@@ -195,6 +195,37 @@ export async function POST(request: Request) {
       profile?.full_name
     )
 
+    const { data: existingProgress, error: existingProgressError } = (await admin
+      .from('onboarding_progress')
+      .select('current_step, onboarding_data')
+      .eq('user_id', user.id)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()) as {
+      data:
+        | {
+            current_step: number | null
+            onboarding_data: OnboardingData | null
+          }
+        | null
+      error: { message: string } | null
+    }
+
+    if (existingProgressError) {
+      throw new Error(existingProgressError.message)
+    }
+
+    const incomingDataIsEmpty = Object.keys(parsed.data.data).length === 0
+
+    if (
+      parsed.data.step === 1 &&
+      incomingDataIsEmpty &&
+      ((existingProgress?.current_step ?? 0) > 1 ||
+        (existingProgress?.onboarding_data &&
+          Object.keys(existingProgress.onboarding_data).length > 0))
+    ) {
+      return NextResponse.json({ ok: true })
+    }
+
     const completedSteps = Array.from({ length: parsed.data.step }, (_, i) => i + 1)
 
     await admin.from('onboarding_progress').upsert(

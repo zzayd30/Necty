@@ -16,7 +16,6 @@ export default function Step1() {
         const fm = new FormData(e.currentTarget);
         set({
           business_name: fm.get("business_name") as string,
-          client_name: fm.get("client_name") as string,
         });
         next();
       }}
@@ -30,14 +29,6 @@ export default function Step1() {
           required
         />
       </div>
-      {/* <div>
-        <label className="block text-sm text-slate-700">Client name*</label>
-        <Input
-          name="client_name"
-          defaultValue={data.client_name ?? ""}
-          required
-        />
-      </div> */}
       <div className="flex justify-end">
         <Button type="submit">Next</Button>
       </div>

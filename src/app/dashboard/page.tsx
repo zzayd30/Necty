@@ -12,9 +12,15 @@ import {
 } from "@/components/ui/card";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Separator } from "@/components/ui/separator";
+import Stripe from "stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: {
+  searchParams: Promise<{ session_id?: string }>;
+}) {
+  const searchParams = await props.searchParams;
+  const sessionId = searchParams?.session_id;
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,6 +28,49 @@ export default async function DashboardPage() {
 
   if (!user) {
     redirect("/login");
+  }
+
+  if (sessionId) {
+    const stripeSecret = process.env.STRIPE_SECRET_KEY;
+    if (stripeSecret) {
+      const stripe = new Stripe(stripeSecret);
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId, {
+          expand: ['customer'],
+        });
+
+        const paymentSucceeded =
+          session.payment_status === 'paid' || session.status === 'complete';
+
+        const customerId =
+          typeof session.customer === 'string'
+            ? session.customer
+            : session.customer?.id;
+
+        if (paymentSucceeded) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const admin: any = createAdminClient();
+          const workspaceId = session.metadata?.workspace_id;
+
+          if (workspaceId) {
+            await admin
+              .from('workspaces')
+              .update({
+                plan_status: 'active',
+                ...(customerId ? { stripe_customer_id: customerId } : {}),
+              })
+              .eq('id', workspaceId);
+          }
+
+          await admin
+            .from('stripe_checkouts')
+            .update({ status: 'succeeded' })
+            .eq('session_id', sessionId);
+        }
+      } catch (err) {
+        console.error('Failed to reconcile checkout session on dashboard load:', err);
+      }
+    }
   }
 
   const { data: memberships, error: membershipError } = await supabase
