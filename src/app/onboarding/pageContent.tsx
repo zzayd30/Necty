@@ -30,6 +30,7 @@ export default function PageContent() {
 
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
+      console.log("Session data on onboarding load:", data.session);
       setHasSession(Boolean(data.session));
     });
   }, []);

@@ -39,9 +39,16 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
-  const isVerifyEmailRoute = request.nextUrl.pathname.startsWith('/verify-email')
-  const isOnboardingRoute = request.nextUrl.pathname.startsWith('/onboarding')
+  const pathname = request.nextUrl.pathname
+  if (pathname.startsWith('/api/') || pathname.startsWith('/auth/confirm')) {
+    return supabaseResponse
+  }
+
+  const isDashboardRoute = pathname.startsWith('/dashboard')
+  const isVerifyEmailRoute = pathname.startsWith('/verify-email')
+  const isOnboardingRoute = pathname.startsWith('/onboarding')
+  const isLoginRoute = pathname === '/login'
+  const isSignupRoute = pathname === '/signup'
 
   function redirectWithCookies(path: string) {
     const url = request.nextUrl.clone()
@@ -94,13 +101,13 @@ export async function updateSession(request: NextRequest) {
   const hasWorkspace = Boolean(memberships && memberships.length > 0)
 
   if (!isOnboardingCompleted || !hasWorkspace) {
-    // If onboarding is incomplete or workspace is not created, they must be on /onboarding
-    if (!isOnboardingRoute) {
+    // If onboarding is incomplete, restrict to /onboarding
+    if (isDashboardRoute || isLoginRoute || isSignupRoute || isVerifyEmailRoute) {
       return redirectWithCookies('/onboarding')
     }
   } else {
-    // Onboarding is completed and workspace is created -> they must not be on /onboarding or /verify-email
-    if (isOnboardingRoute || isVerifyEmailRoute) {
+    // Onboarding is completed, restrict from /onboarding, /verify-email, /login, /signup
+    if (isOnboardingRoute || isVerifyEmailRoute || isLoginRoute || isSignupRoute) {
       return redirectWithCookies('/dashboard')
     }
   }

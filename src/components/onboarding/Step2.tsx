@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useOnboardingStore } from "@/stores/onboardingStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,43 +43,59 @@ export default function Step2() {
   const next = useOnboardingStore((s) => s.next);
   const prev = useOnboardingStore((s) => s.prev);
 
+  const [industry, setIndustry] = useState(data.industry ?? "");
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         const fm = new FormData(e.currentTarget);
+
+        const selectedIndustry = fm.get("industry") as string;
+        const customIndustry = fm.get("custom_industry") as string;
+
         set({
-          industry: fm.get("industry") as string,
-          custom_industry: fm.get("custom_industry") as string,
+          industry: selectedIndustry,
+          custom_industry: customIndustry,
         });
+
         next();
       }}
       className="space-y-4"
     >
       <div>
         <label className="block text-sm text-slate-700">Industry*</label>
+
         <input
           list="industries"
           name="industry"
-          defaultValue={data.industry ?? ""}
+          value={industry}
+          onChange={(e) => setIndustry(e.target.value)}
           required
           className="h-8 w-full rounded border px-2"
         />
+
         <datalist id="industries">
           {INDUSTRY_OPTIONS.map((opt) => (
             <option key={opt} value={opt} />
           ))}
         </datalist>
       </div>
-      <div>
-        <label className="block text-sm text-slate-700">
-          Custom industry (if not listed)
-        </label>
-        <Input
-          name="custom_industry"
-          defaultValue={data.custom_industry ?? ""}
-        />
-      </div>
+
+      {/* 👇 Only show when "Other" is selected */}
+      {industry === "Other" && (
+        <div>
+          <label className="block text-sm text-slate-700">
+            Custom industry
+          </label>
+          <Input
+            name="custom_industry"
+            defaultValue={data.custom_industry ?? ""}
+            placeholder="Enter your industry"
+          />
+        </div>
+      )}
+
       <div className="flex justify-between">
         <Button
           variant="outline"

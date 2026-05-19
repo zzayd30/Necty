@@ -209,6 +209,45 @@ export async function POST(request: Request) {
       { onConflict: 'user_id,workspace_id' }
     )
 
+    // Update workspaces table with matching onboarding data
+    const wsUpdate: Record<string, any> = {}
+    const obData = parsed.data.data
+
+    if (obData.business_name !== undefined) wsUpdate.business_name = obData.business_name
+    if (obData.industry !== undefined) wsUpdate.industry = obData.industry
+    if (obData.custom_industry !== undefined) wsUpdate.custom_industry = obData.custom_industry
+    if (obData.city !== undefined) wsUpdate.city = obData.city
+    if (obData.state !== undefined) wsUpdate.state = obData.state
+
+    if (obData.service_area_radius !== undefined) {
+      wsUpdate.service_area_mi = obData.service_area_radius
+        ? Number(obData.service_area_radius)
+        : null
+    }
+
+    if (obData.competitors_to_monitor !== undefined) {
+      const val = obData.competitors_to_monitor
+      wsUpdate.competitors_to_monitor = typeof val === 'string'
+        ? val.split(',').map((s) => s.trim()).filter(Boolean)
+        : Array.isArray(val) ? val : null
+    }
+
+    if (obData.platforms !== undefined) {
+      const val = obData.platforms
+      wsUpdate.platforms = typeof val === 'string'
+        ? val.split(',').map((s) => s.trim()).filter(Boolean)
+        : Array.isArray(val) ? val : null
+    }
+
+    if (obData.default_offer !== undefined) wsUpdate.default_offer = obData.default_offer
+    if (obData.booking_link !== undefined) wsUpdate.booking_link = obData.booking_link
+    if (obData.preferred_tone !== undefined) wsUpdate.preferred_tone = obData.preferred_tone
+    if (obData.run_frequency !== undefined) wsUpdate.run_frequency = obData.run_frequency
+
+    if (Object.keys(wsUpdate).length > 0) {
+      await admin.from('workspaces').update(wsUpdate).eq('id', workspaceId)
+    }
+
     return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json(
