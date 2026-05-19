@@ -2,12 +2,17 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
 })
+
+type OnboardingProgressRow = {
+  onboarding_completed: boolean | null
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
@@ -54,16 +59,21 @@ export async function POST(request: Request) {
     }
 
     // 2. Check if onboarding is completed
-    const { data: progress, error: progressError } = await supabase
+    const admin = createAdminClient()
+
+    const { data: progress, error: progressError } = (await admin
       .from('onboarding_progress')
       .select('onboarding_completed')
       .eq('user_id', userId)
-      .maybeSingle()
+      .maybeSingle()) as {
+        data: OnboardingProgressRow | null
+        error: { message: string } | null
+      }
 
     if (progressError) {
       return NextResponse.json({ error: progressError.message }, { status: 500 })
     }
-
+    console.log('[login] onboarding progress', { progress }) // Debug log
     const onboardingCompleted = progress?.onboarding_completed ?? false
     if (!onboardingCompleted) {
       return NextResponse.json({
@@ -72,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Check if workspace is created
-    const { data: memberships, error: membershipError } = await supabase
+    const { data: memberships, error: membershipError } = await admin
       .from('workspace_members')
       .select('workspace_id')
       .eq('user_id', userId)

@@ -139,7 +139,7 @@ export async function POST(request: Request) {
         workspace_id: workspaceId,
         current_step: 9,
         completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-        onboarding_completed: true,
+        onboarding_completed: false,
         onboarding_data: body,
       },
       { onConflict: 'user_id,workspace_id' }
@@ -147,6 +147,7 @@ export async function POST(request: Request) {
 
     const stripeSecret = process.env.STRIPE_SECRET_KEY
     if (!stripeSecret) {
+      await admin.from('onboarding_progress').update({ onboarding_completed: true }).eq('user_id', user.id).eq('workspace_id', workspaceId)
       await admin.from('workspaces').update({ plan_status: 'active' }).eq('id', workspaceId)
       return NextResponse.json({ redirectTo: '/dashboard' })
     }

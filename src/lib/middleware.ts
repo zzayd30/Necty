@@ -56,6 +56,7 @@ export async function updateSession(request: NextRequest) {
   const isOnboardingRoute = request.nextUrl.pathname.startsWith('/onboarding')
   const isLoginRoute = request.nextUrl.pathname === '/login'
   const isSignupRoute = request.nextUrl.pathname === '/signup'
+  const hasDashboardSessionId = Boolean(request.nextUrl.searchParams.get('session_id'))
 
   function redirectWithCookies(path: string) {
     const url = request.nextUrl.clone()
@@ -148,6 +149,10 @@ export async function updateSession(request: NextRequest) {
   // If onboarding is not completed or the onboarding row does not exist yet,
   // restrict protected routes to onboarding.
   if (!isOnboardingCompleted) {
+    if (isDashboardRoute && hasDashboardSessionId) {
+      return supabaseResponse
+    }
+
     if (isDashboardRoute || isLoginRoute || isSignupRoute || isVerifyEmailRoute) {
       return redirectWithCookies('/onboarding')
     }

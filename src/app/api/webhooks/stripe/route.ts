@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         const workspaceId = session.metadata?.workspace_id
+        const userId = session.metadata?.user_id
         const customerId = session.customer as string
 
         if (workspaceId) {
@@ -53,6 +54,22 @@ export async function POST(request: Request) {
 
           if (wsError) {
             console.error(`Failed to update workspace status: ${wsError.message}`)
+          }
+
+          if (userId) {
+            const { error: progressError } = await admin
+              .from('onboarding_progress')
+              .update({
+                onboarding_completed: true,
+                current_step: 9,
+                completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+              })
+              .eq('user_id', userId)
+              .eq('workspace_id', workspaceId)
+
+            if (progressError) {
+              console.error(`Failed to complete onboarding progress: ${progressError.message}`)
+            }
           }
         }
 

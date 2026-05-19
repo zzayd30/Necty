@@ -51,6 +51,7 @@ export default async function DashboardPage(props: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const admin: any = createAdminClient();
           const workspaceId = session.metadata?.workspace_id;
+          const userId = session.metadata?.user_id;
 
           if (workspaceId) {
             await admin
@@ -60,6 +61,18 @@ export default async function DashboardPage(props: {
                 ...(customerId ? { stripe_customer_id: customerId } : {}),
               })
               .eq("id", workspaceId);
+
+            if (userId) {
+              await admin
+                .from("onboarding_progress")
+                .update({
+                  onboarding_completed: true,
+                  current_step: 9,
+                  completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                })
+                .eq("user_id", userId)
+                .eq("workspace_id", workspaceId);
+            }
           }
 
           await admin
@@ -81,9 +94,7 @@ export default async function DashboardPage(props: {
     .select(
       "workspace_id, role, accepted, invited_email, workspaces:workspace_id (id, business_name, industry, custom_industry, city, state, plan, plan_status, created_at)",
     )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
-
+    .eq("user_id", user.id);
   const workspaces =
     memberships
       ?.map((membership) => {
