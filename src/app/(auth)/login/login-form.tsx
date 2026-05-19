@@ -15,10 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+import { useAuthApi } from "@/hooks/useAuthApi";
+
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const { login } = useAuthApi();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,31 +30,15 @@ export function LoginForm() {
 
     try {
       const formData = new FormData(event.currentTarget);
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: String(formData.get("email") ?? ""),
-          password: String(formData.get("password") ?? ""),
-        }),
+      const result = await login({
+        email: String(formData.get("email") ?? ""),
+        password: String(formData.get("password") ?? ""),
       });
-
-      const result = (await response.json()) as {
-        error?: string;
-        redirectTo?: string;
-      };
-
-      if (!response.ok || result.error) {
-        setError(result.error ?? "Login failed.");
-        return;
-      }
 
       router.push(result.redirectTo ?? "/dashboard");
       router.refresh();
-    } catch {
-      setError("Login failed unexpectedly.");
+    } catch (err: any) {
+      setError(err.message ?? "Login failed unexpectedly.");
     } finally {
       setIsPending(false);
     }

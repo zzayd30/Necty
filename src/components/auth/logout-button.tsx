@@ -5,27 +5,21 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 
+import { useAuthApi } from "@/hooks/useAuthApi";
+
 export function LogoutButton() {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
+  const { logout } = useAuthApi();
 
   async function onLogout() {
     setIsPending(true);
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-      });
-      const result = (await response.json()) as {
-        redirectTo?: string;
-        error?: string;
-      };
-
-      if (!response.ok || result.error) {
-        throw new Error(result.error ?? "Logout failed.");
-      }
-
+      const result = await logout();
       router.push(result.redirectTo ?? "/login");
       router.refresh();
+    } catch (err: any) {
+      console.error(err.message ?? "Logout failed.");
     } finally {
       setIsPending(false);
     }

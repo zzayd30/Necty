@@ -15,10 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+import { useAuthApi } from "@/hooks/useAuthApi";
+
 export function SignupForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const { signup } = useAuthApi();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,32 +30,16 @@ export function SignupForm() {
 
     try {
       const formData = new FormData(event.currentTarget);
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fullName: String(formData.get("fullName") ?? ""),
-          email: String(formData.get("email") ?? ""),
-          password: String(formData.get("password") ?? ""),
-        }),
+      const result = await signup({
+        fullName: String(formData.get("fullName") ?? ""),
+        email: String(formData.get("email") ?? ""),
+        password: String(formData.get("password") ?? ""),
       });
-
-      const result = (await response.json()) as {
-        error?: string;
-        redirectTo?: string;
-      };
-
-      if (!response.ok || result.error) {
-        setError(result.error ?? "Signup failed.");
-        return;
-      }
 
       router.push(result.redirectTo ?? "/onboarding");
       router.refresh();
-    } catch {
-      setError("Signup failed unexpectedly.");
+    } catch (err: any) {
+      setError(err.message ?? "Signup failed unexpectedly.");
     } finally {
       setIsPending(false);
     }

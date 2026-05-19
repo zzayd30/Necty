@@ -4,10 +4,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import { useAuthApi } from "@/hooks/useAuthApi";
+
 export function VerifyEmailForm() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const { resendVerification } = useAuthApi();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -16,23 +19,10 @@ export function VerifyEmailForm() {
     setIsPending(true);
 
     try {
-      const response = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-      });
-
-      const result = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-
-      if (!response.ok || result.error) {
-        setError(result.error ?? "Unable to resend verification.");
-        return;
-      }
-
+      const result = await resendVerification();
       setMessage(result.message ?? "Verification email sent.");
-    } catch {
-      setError("Unable to resend verification.");
+    } catch (err: any) {
+      setError(err.message ?? "Unable to resend verification.");
     } finally {
       setIsPending(false);
     }

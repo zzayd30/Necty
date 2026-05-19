@@ -13,23 +13,28 @@ import Step7 from "@/components/onboarding/Step7";
 import Step8 from "@/components/onboarding/Step8";
 import Step9 from "@/components/onboarding/Step9";
 
+import { useOnboardingApi } from "@/hooks/useOnboardingApi";
+
 export default function PageContent() {
   const step = useOnboardingStore((s) => s.step);
   const data = useOnboardingStore((s) => s.data);
   const setData = useOnboardingStore((s) => s.set);
   const goTo = useOnboardingStore((s) => s.goTo);
-  const [hydrated, setHydrated] = React.useState(
-    useOnboardingStore.persist.hasHydrated(),
-  );
+  const [hydrated, setHydrated] = React.useState(false);
   const [hasSession, setHasSession] = React.useState(false);
   const [initialSyncDone, setInitialSyncDone] = React.useState(false);
+  const { loadProgress, saveProgress } = useOnboardingApi();
 
   React.useEffect(() => {
-    const unsubscribe = useOnboardingStore.persist.onFinishHydration(() => {
+    if (useOnboardingStore.persist?.hasHydrated()) {
+      setHydrated(true);
+    }
+
+    const unsubscribe = useOnboardingStore.persist?.onFinishHydration(() => {
       setHydrated(true);
     });
 
-    if (!useOnboardingStore.persist.hasHydrated()) {
+    if (useOnboardingStore.persist && !useOnboardingStore.persist.hasHydrated()) {
       useOnboardingStore.persist.rehydrate();
     }
 
@@ -39,7 +44,7 @@ export default function PageContent() {
     });
 
     return () => {
-      unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 
@@ -49,32 +54,23 @@ export default function PageContent() {
     }
 
     void (async () => {
-      const response = await fetch("/api/onboarding/progress", {
-        method: "GET",
-        cache: "no-store",
-      });
-      const progress = (await response.json()) as {
-        error?: string;
-        step?: number;
-        data?: Record<string, string | number | string[] | null>;
-      };
+      try {
+        const progress = await loadProgress();
 
-      if (!response.ok || progress.error) {
+        if (progress.step) {
+          goTo(progress.step);
+        }
+
+        if (progress.data && Object.keys(progress.data).length) {
+          setData(progress.data);
+        }
+      } catch (error) {
+        // Ignore load errors or log them
+      } finally {
         setInitialSyncDone(true);
-        return;
       }
-
-      if (progress.step) {
-        goTo(progress.step);
-      }
-
-      if (progress.data && Object.keys(progress.data).length) {
-        setData(progress.data);
-      }
-
-      setInitialSyncDone(true);
     })();
-  }, [goTo, hasSession, hydrated, initialSyncDone, setData]);
+  }, [goTo, hasSession, hydrated, initialSyncDone, setData, loadProgress]);
 
   React.useEffect(() => {
     if (!hydrated || !hasSession || !initialSyncDone) {
@@ -82,22 +78,16 @@ export default function PageContent() {
     }
 
     const timer = setTimeout(() => {
-      void fetch("/api/onboarding/progress", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          step,
-          data,
-        }),
+      void saveProgress({
+        step,
+        data,
       });
     }, 400);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [data, hasSession, hydrated, initialSyncDone, step]);
+  }, [data, hasSession, hydrated, initialSyncDone, step, saveProgress]);
 
   if (!hydrated) {
     return (

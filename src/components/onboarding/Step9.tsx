@@ -4,6 +4,9 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
+import { useBillingApi } from "@/hooks/useBillingApi";
+import { useOnboardingApi } from "@/hooks/useOnboardingApi";
+
 export default function Step9() {
   const data = useOnboardingStore((s) => s.data);
   const prev = useOnboardingStore((s) => s.prev);
@@ -13,6 +16,8 @@ export default function Step9() {
   const [planPriceLabel, setPlanPriceLabel] = React.useState("$199.99 / month");
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const { getActiveProduct } = useBillingApi();
+  const { finalize } = useOnboardingApi();
 
   React.useEffect(() => {
     const supabase = createClient();
@@ -23,28 +28,22 @@ export default function Step9() {
     });
 
     void (async () => {
-      const response = await fetch("/api/billing/active-product", {
-        method: "GET",
-        cache: "no-store",
-      });
-      const result = (await response.json()) as {
-        product?: {
-          name: string;
-          unit_amount_cents: number;
-          recurring_interval: string;
-        } | null;
-      };
-      const product = result.product;
+      try {
+        const result = await getActiveProduct();
+        const product = result.product;
 
-      if (!product) {
-        return;
+        if (!product) {
+          return;
+        }
+
+        const amount = (product.unit_amount_cents / 100).toFixed(2);
+        setPlanLabel(product.name);
+        setPlanPriceLabel(`$${amount} / ${product.recurring_interval}`);
+      } catch (err) {
+        // Ignore load errors or log them
       }
-
-      const amount = (product.unit_amount_cents / 100).toFixed(2);
-      setPlanLabel(product.name);
-      setPlanPriceLabel(`$${amount} / ${product.recurring_interval}`);
     })();
-  }, []);
+  }, [getActiveProduct]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,27 +55,10 @@ export default function Step9() {
     setIsPending(true);
 
     try {
-      const response = await fetch("/api/onboarding/finalize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      const result = (await response.json()) as {
-        error?: string;
-        redirectTo?: string;
-      };
-
-      if (!response.ok || result.error) {
-        setError(result.error ?? "Unable to finish onboarding.");
-        return;
-      }
-
+      const result = await finalize(data);
       window.location.href = result.redirectTo ?? "/dashboard";
-    } catch {
-      setError("Unable to finish onboarding.");
+    } catch (err: any) {
+      setError(err.message ?? "Unable to finish onboarding.");
     } finally {
       setIsPending(false);
     }
