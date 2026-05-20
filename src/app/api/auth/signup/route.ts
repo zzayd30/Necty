@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendVerificationEmail } from '@/lib/email'
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(1).optional(),
@@ -131,8 +132,6 @@ export async function POST(request: Request) {
       { onConflict: 'user_id,workspace_id' }
     )
 
-    // 7. Send verification email using Resend
-    const { sendVerificationEmail } = await import('@/lib/email')
     await sendVerificationEmail(parsed.data.email, verificationLink)
 
     // 8. RETURN redirect
