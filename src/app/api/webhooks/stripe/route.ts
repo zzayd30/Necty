@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
+import { apiError, apiSuccess } from '@/lib/api-response'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
@@ -8,17 +9,14 @@ export async function POST(request: Request) {
   const signature = request.headers.get('stripe-signature')
 
   if (!signature) {
-    return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
+    return apiError('Missing stripe-signature header', 400)
   }
 
   const stripeSecret = process.env.STRIPE_SECRET_KEY
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
   if (!stripeSecret || !webhookSecret) {
-    return NextResponse.json(
-      { error: 'Stripe configuration is missing on the server' },
-      { status: 500 }
-    )
+    return apiError('Stripe configuration is missing on the server', 500)
   }
 
   const stripe = new Stripe(stripeSecret)
@@ -28,7 +26,7 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err: any) {
     console.error(`Webhook signature verification failed: ${err.message}`)
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 })
+    return apiError(`Webhook Error: ${err.message}`, 400)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -144,12 +142,9 @@ export async function POST(request: Request) {
         break
     }
 
-    return NextResponse.json({ received: true })
+    return apiSuccess({ received: true }, 'Webhook received.')
   } catch (error: any) {
     console.error(`Error processing Stripe webhook event ${event.type}:`, error)
-    return NextResponse.json(
-      { error: error.message ?? 'Internal Server Error' },
-      { status: 500 }
-    )
+    return apiError(error.message ?? 'Internal Server Error', 500)
   }
 }

@@ -16,7 +16,11 @@ export function LogoutButton() {
     setIsPending(true);
     try {
       const result = await logout();
-      router.push(result.redirectTo ?? "/login");
+      if (!result.success) {
+        console.error(result.message ?? "Logout failed.");
+        return;
+      }
+      router.push(result.data?.redirectTo ?? "/login");
       router.refresh();
     } catch (err: any) {
       console.error(err.message ?? "Logout failed.");

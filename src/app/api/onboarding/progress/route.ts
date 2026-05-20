@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+import { apiError, apiSuccess } from '@/lib/api-response'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -107,7 +107,7 @@ export async function GET() {
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return apiError('Not authenticated', 401)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,18 +142,21 @@ export async function GET() {
       }
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return apiError(error.message, 500)
     }
 
-    return NextResponse.json({
-      step: Math.max(1, Math.min(9, data?.current_step ?? 1)),
-      data: data?.onboarding_data ?? {},
-      completed: Boolean(data?.onboarding_completed),
-    })
+    return apiSuccess(
+      {
+        step: Math.max(1, Math.min(9, data?.current_step ?? 1)),
+        data: data?.onboarding_data ?? {},
+        completed: Boolean(data?.onboarding_completed),
+      },
+      'Onboarding progress loaded.'
+    )
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unable to load onboarding progress.' },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : 'Unable to load onboarding progress.',
+      500
     )
   }
 }
@@ -163,10 +166,7 @@ export async function POST(request: Request) {
   const parsed = progressSchema.safeParse(body)
 
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid payload.' },
-      { status: 400 }
-    )
+    return apiError(parsed.error.issues[0]?.message ?? 'Invalid payload.', 400)
   }
 
   try {
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return apiError('Not authenticated', 401)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
         (existingProgress?.onboarding_data &&
           Object.keys(existingProgress.onboarding_data).length > 0))
     ) {
-      return NextResponse.json({ ok: true })
+      return apiSuccess({ ok: true }, 'Onboarding progress already exists.')
     }
 
     const completedSteps = Array.from({ length: parsed.data.step }, (_, i) => i + 1)
@@ -279,11 +279,11 @@ export async function POST(request: Request) {
       await admin.from('workspaces').update(wsUpdate).eq('id', workspaceId)
     }
 
-    return NextResponse.json({ ok: true })
+    return apiSuccess({ ok: true }, 'Onboarding progress saved.')
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unable to save onboarding progress.' },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : 'Unable to save onboarding progress.',
+      500
     )
   }
 }

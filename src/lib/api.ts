@@ -1,5 +1,7 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 
+import type { ApiResponse } from "@/lib/api-response";
+
 export type ApiSerializableValue = string | number | string[] | null;
 
 export type OnboardingData = Record<string, ApiSerializableValue>;
@@ -15,6 +17,10 @@ export type LoginPayload = {
   password: string;
 };
 
+export type ForgotPasswordPayload = {
+  email: string;
+};
+
 export type OnboardingProgressPayload = {
   step: number;
   data: OnboardingData;
@@ -27,13 +33,11 @@ export type RedirectResponse = {
 };
 
 export type MessageResponse = {
-  message?: string;
-  status?: number;
-  success?: boolean;
+  message: string;
 };
 
 export type OkResponse = {
-  ok?: boolean;
+  ok: boolean;
 };
 
 export type BillingProduct = {
@@ -58,8 +62,11 @@ export type OnboardingProgressResponse = {
 };
 
 export type ApiErrorBody = {
-  error?: string;
+  success?: boolean;
+  status?: number;
   message?: string;
+  error?: string;
+  data?: unknown;
 };
 
 const apiClient = axios.create({
@@ -92,29 +99,42 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-async function request<T>(promise: Promise<AxiosResponse<T>>, fallback: string) {
+async function request<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>, fallback: string) {
   try {
     const response = await promise;
-    return response.data;
+    return response.data as ApiResponse<T>;
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const payload = error.response.data as ApiResponse<T>;
+      if (payload && typeof payload === "object" && "success" in payload) {
+        return payload;
+      }
+    }
     throw new Error(getErrorMessage(error, fallback));
   }
 }
 
 export const authApi = {
   signup(payload: SignupPayload) {
-    return request<RedirectResponse & MessageResponse>(apiClient.post("/auth/signup", payload), "Signup failed.");
+    return request<RedirectResponse & MessageResponse>(apiClient.post<ApiResponse<RedirectResponse & MessageResponse>>("/auth/signup", payload), "Signup failed.");
   },
   login(payload: LoginPayload) {
-    return request<RedirectResponse>(apiClient.post("/auth/login", payload), "Login failed.");
+    return request<RedirectResponse>(apiClient.post<ApiResponse<RedirectResponse>>("/auth/login", payload), "Login failed.");
   },
   logout() {
-    return request<RedirectResponse & OkResponse>(apiClient.post("/auth/logout"), "Logout failed.");
+    return request<RedirectResponse & OkResponse>(apiClient.post<ApiResponse<RedirectResponse & OkResponse>>("/auth/logout"), "Logout failed.");
   },
-  resendVerification() {
+  resendVerification(email?: string) {
+    const payload = email ? { email } : {};
     return request<MessageResponse>(
-      apiClient.post("/auth/resend-verification"),
+      apiClient.post<ApiResponse<MessageResponse>>("/auth/resend-verification", payload),
       "Unable to resend verification."
+    );
+  },
+  forgotPassword(payload: ForgotPasswordPayload) {
+    return request<MessageResponse>(
+      apiClient.post<ApiResponse<MessageResponse>>("/auth/forgot-password", payload),
+      "Failed to send password reset link."
     );
   },
 };
@@ -122,7 +142,7 @@ export const authApi = {
 export const onboardingApi = {
   loadProgress() {
     return request<OnboardingProgressResponse>(
-      apiClient.get("/onboarding/progress", {
+      apiClient.get<ApiResponse<OnboardingProgressResponse>>("/onboarding/progress", {
         headers: {
           "Cache-Control": "no-cache",
         },
@@ -132,13 +152,13 @@ export const onboardingApi = {
   },
   saveProgress(payload: OnboardingProgressPayload) {
     return request<OkResponse>(
-      apiClient.post("/onboarding/progress", payload),
+      apiClient.post<ApiResponse<OkResponse>>("/onboarding/progress", payload),
       "Unable to save onboarding progress."
     );
   },
   finalize(payload: OnboardingFinalizePayload) {
     return request<RedirectResponse>(
-      apiClient.post("/onboarding/finalize", payload),
+      apiClient.post<ApiResponse<RedirectResponse>>("/onboarding/finalize", payload),
       "Unable to finalize onboarding."
     );
   },
@@ -147,7 +167,7 @@ export const onboardingApi = {
 export const billingApi = {
   getActiveProduct() {
     return request<ActiveBillingProductResponse>(
-      apiClient.get("/billing/active-product", {
+      apiClient.get<ApiResponse<ActiveBillingProductResponse>>("/billing/active-product", {
         headers: {
           "Cache-Control": "no-cache",
         },

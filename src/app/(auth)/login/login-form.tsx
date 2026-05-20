@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 
 import { useAuthApi } from "@/hooks/useAuthApi";
+import toast from "react-hot-toast";
 
 export function LoginForm() {
   const router = useRouter();
@@ -35,10 +36,29 @@ export function LoginForm() {
         password: String(formData.get("password") ?? ""),
       });
 
-      router.push(result.redirectTo ?? "/dashboard");
+      if (!result.success) {
+        const message = result.message ?? "Login failed unexpectedly.";
+        const userEmail = String(formData.get("email") ?? "");
+
+        // Redirect to verify email if email is not confirmed
+        if (result.status === 400 && message.toLowerCase().includes("email")) {
+          // toast.error(message);
+          router.push(`/verify-email?email=${encodeURIComponent(userEmail)}`);
+          return;
+        }
+
+        toast.error(message);
+        setError(message);
+        return;
+      }
+
+      toast.success("Logged in successfully!");
+      router.push(result.data?.redirectTo ?? "/dashboard");
       router.refresh();
     } catch (err: any) {
-      setError(err.message ?? "Login failed unexpectedly.");
+      const message = err?.message ?? "Login failed unexpectedly.";
+      toast.error(message);
+      setError(message);
     } finally {
       setIsPending(false);
     }
@@ -97,13 +117,21 @@ export function LoginForm() {
         </form>
       </CardContent>
       <CardFooter className="flex items-center justify-between border-t border-slate-200/70 bg-slate-50/80 px-6 py-4 text-sm text-slate-600">
-        <span>Need a workspace?</span>
         <Link
-          href="/signup"
+          href="/forgot-password"
           className="font-medium text-slate-950 hover:underline"
         >
-          Create account
+          Forgot password?
         </Link>
+        <div className="flex items-center gap-1">
+          <span>Need a workspace?</span>
+          <Link
+            href="/signup"
+            className="font-medium text-slate-950 hover:underline"
+          >
+            Create account
+          </Link>
+        </div>
       </CardFooter>
     </Card>
   );

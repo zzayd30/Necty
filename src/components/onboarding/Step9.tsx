@@ -30,7 +30,10 @@ export default function Step9() {
     void (async () => {
       try {
         const result = await getActiveProduct();
-        const product = result.product;
+        if (!result.success) {
+          return;
+        }
+        const product = result.data?.product;
 
         if (!product) {
           return;
@@ -56,7 +59,11 @@ export default function Step9() {
 
     try {
       const result = await finalize(data);
-      window.location.href = result.redirectTo ?? "/dashboard";
+      if (!result.success) {
+        setError(result.message ?? "Unable to finish onboarding.");
+        return;
+      }
+      window.location.href = result.data?.redirectTo ?? "/dashboard";
     } catch (err: any) {
       setError(err.message ?? "Unable to finish onboarding.");
     } finally {

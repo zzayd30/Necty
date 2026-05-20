@@ -37,9 +37,17 @@ export function SignupForm() {
         email: String(formData.get("email") ?? ""),
         password: String(formData.get("password") ?? ""),
       });
+      console.log('[SignupForm] signup result', result) // Debug log
 
-      toast.success(result.message ?? "User created! Please verify your email.");
-      setSuccessMessage(result.message ?? "User created and verification email sent.");
+      if (!result.success) {
+        const message = result.message ?? "Signup failed, please try again later.";
+        toast.error(message);
+        setError(message);
+        return;
+      }
+
+      toast.success(result.data?.message ?? result.message ?? "User created! Please verify your email.");
+      setSuccessMessage(result.data?.message ?? result.message ?? "User created and verification email sent.");
     } catch (err: any) {
       setError(err.message ?? "Signup failed unexpectedly.");
     } finally {

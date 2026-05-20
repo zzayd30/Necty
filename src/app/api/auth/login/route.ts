@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+import { apiError, apiSuccess } from '@/lib/api-response'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -19,10 +19,7 @@ export async function POST(request: Request) {
   const parsed = loginSchema.safeParse(body)
 
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid payload.' },
-      { status: 400 }
-    )
+    return apiError(parsed.error.issues[0]?.message ?? 'Invalid payload.', 400)
   }
 
   try {
@@ -40,22 +37,19 @@ export async function POST(request: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return apiError(error.message, 400)
     }
 
     const userId = data.user?.id
     if (!userId) {
-      return NextResponse.json(
-        { error: 'Unable to start a session for this account.' },
-        { status: 400 }
-      )
+      return apiError('Unable to start a session for this account.', 400)
     }
 
     // 1. Check if the account is verified (email confirmed)
     if (!data.user?.email_confirmed_at) {
-      return NextResponse.json({
+      return apiSuccess({
         redirectTo: '/verify-email',
-      })
+      }, 'Email verification required.')
     }
 
     // 2. Check if onboarding is completed
@@ -71,14 +65,14 @@ export async function POST(request: Request) {
       }
 
     if (progressError) {
-      return NextResponse.json({ error: progressError.message }, { status: 500 })
+      return apiError(progressError.message, 500)
     }
     console.log('[login] onboarding progress', { progress }) // Debug log
     const onboardingCompleted = progress?.onboarding_completed ?? false
     if (!onboardingCompleted) {
-      return NextResponse.json({
+      return apiSuccess({
         redirectTo: '/onboarding',
-      })
+      }, 'Onboarding required.')
     }
 
     // 3. Check if workspace is created
@@ -90,22 +84,19 @@ export async function POST(request: Request) {
       .limit(1)
 
     if (membershipError) {
-      return NextResponse.json({ error: membershipError.message }, { status: 500 })
+      return apiError(membershipError.message, 500)
     }
 
     if (!memberships?.length) {
-      return NextResponse.json({
+      return apiSuccess({
         redirectTo: '/onboarding',
-      })
+      }, 'Onboarding required.')
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       redirectTo: '/dashboard',
-    })
+    }, 'Login successful.')
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Login failed unexpectedly.' },
-      { status: 500 }
-    )
+    return apiError(error instanceof Error ? error.message : 'Login failed unexpectedly.', 500)
   }
 }

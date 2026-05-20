@@ -9,7 +9,12 @@ type OnboardingProgressRow = {
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  if (pathname.startsWith('/api/') || pathname.startsWith('/auth/confirm')) {
+  // Routes that don't need any authentication checks
+  const skipAuthRoutes = ['/api/', '/auth/confirm', '/auth/reset-password']
+  const shouldSkipAuthCheck = skipAuthRoutes.some(route => pathname.startsWith(route))
+
+  // If it's a skip-auth route, allow it through
+  if (shouldSkipAuthCheck) {
     return NextResponse.next({
       request,
     })
@@ -52,10 +57,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
   const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
-  const isVerifyEmailRoute = request.nextUrl.pathname.startsWith('/verify-email')
   const isOnboardingRoute = request.nextUrl.pathname.startsWith('/onboarding')
-  const isLoginRoute = request.nextUrl.pathname === '/login'
-  const isSignupRoute = request.nextUrl.pathname === '/signup'
   const hasDashboardSessionId = Boolean(request.nextUrl.searchParams.get('session_id'))
 
   function redirectWithCookies(path: string) {
@@ -73,7 +75,7 @@ export async function updateSession(request: NextRequest) {
 
   // 1. If not logged in:
   if (!user) {
-    if (isDashboardRoute || isVerifyEmailRoute || isOnboardingRoute) {
+    if (isDashboardRoute || isOnboardingRoute) {
       return redirectWithCookies('/login')
     }
     return supabaseResponse
@@ -81,10 +83,23 @@ export async function updateSession(request: NextRequest) {
 
   // 2. If logged in:
   const isConfirmed = Boolean(user.email_confirmed_at)
+  const isLoginRoute = pathname === '/login'
+  const isSignupRoute = pathname === '/signup'
+  const isForgotPasswordRoute = pathname === '/forgot-password'
+  const isVerifyEmailRoute = pathname === '/verify-email'
+  const isAuthRoute = isLoginRoute || isSignupRoute || isForgotPasswordRoute || isVerifyEmailRoute
 
   // 2a. If not verified (email unconfirmed):
   if (!isConfirmed) {
-    if (!isVerifyEmailRoute) {
+    // Allow verify-email, but redirect other auth routes to verify-email
+    if (isLoginRoute || isSignupRoute || isForgotPasswordRoute) {
+      return redirectWithCookies('/verify-email')
+    }
+    if (isVerifyEmailRoute) {
+      return supabaseResponse
+    }
+    // For other routes, redirect to verify-email
+    if (pathname !== '/verify-email') {
       return redirectWithCookies('/verify-email')
     }
     return supabaseResponse
@@ -153,14 +168,23 @@ export async function updateSession(request: NextRequest) {
       return supabaseResponse
     }
 
-    if (isDashboardRoute || isLoginRoute || isSignupRoute || isVerifyEmailRoute) {
+    if (isDashboardRoute) {
+      return redirectWithCookies('/onboarding')
+    }
+    // Redirect auth routes to onboarding for confirmed users
+    if (isAuthRoute) {
       return redirectWithCookies('/onboarding')
     }
     return supabaseResponse
   }
 
   // Onboarding is completed — restrict /onboarding and auth routes.
-  if (isOnboardingRoute || isVerifyEmailRoute || isLoginRoute || isSignupRoute) {
+  if (isOnboardingRoute) {
+    return redirectWithCookies('/dashboard')
+  }
+
+  // Prevent authenticated users from accessing auth pages
+  if (isAuthRoute) {
     return redirectWithCookies('/dashboard')
   }
 

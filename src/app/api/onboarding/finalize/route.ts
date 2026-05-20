@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { z } from 'zod'
 
+import { apiError, apiSuccess } from '@/lib/api-response'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -84,10 +84,7 @@ export async function POST(request: Request) {
   const parsed = finalSchema.safeParse(body)
 
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid onboarding payload' },
-      { status: 400 }
-    )
+    return apiError(parsed.error.issues[0]?.message ?? 'Invalid onboarding payload', 400)
   }
 
   try {
@@ -98,7 +95,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (userErr || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      return apiError('Not authenticated', 401)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -147,9 +144,13 @@ export async function POST(request: Request) {
 
     const stripeSecret = process.env.STRIPE_SECRET_KEY
     if (!stripeSecret) {
-      await admin.from('onboarding_progress').update({ onboarding_completed: true }).eq('user_id', user.id).eq('workspace_id', workspaceId)
+      await admin
+        .from('onboarding_progress')
+        .update({ onboarding_completed: true })
+        .eq('user_id', user.id)
+        .eq('workspace_id', workspaceId)
       await admin.from('workspaces').update({ plan_status: 'active' }).eq('id', workspaceId)
-      return NextResponse.json({ redirectTo: '/dashboard' })
+      return apiSuccess({ redirectTo: '/dashboard' }, 'Onboarding completed.')
     }
 
     const stripe = new Stripe(stripeSecret)
@@ -177,16 +178,11 @@ export async function POST(request: Request) {
 
     if (checkoutErr) throw new Error(checkoutErr.message)
 
-    return NextResponse.json({ redirectTo: session.url ?? '/dashboard' })
+    return apiSuccess({ redirectTo: session.url ?? '/dashboard' }, 'Onboarding completed.')
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Unable to finalize onboarding.',
-      },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : 'Unable to finalize onboarding.',
+      500
     )
   }
 }

@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+import { apiError, apiSuccess } from '@/lib/api-response'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendVerificationEmail } from '@/lib/email'
 
@@ -16,10 +16,7 @@ export async function POST(request: Request) {
   const parsed = signupSchema.safeParse(body)
 
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid payload.' },
-      { status: 400 }
-    )
+    return apiError(parsed.error.issues[0]?.message ?? 'Invalid payload.', 400)
   }
 
   try {
@@ -45,10 +42,7 @@ export async function POST(request: Request) {
       })
 
     if (userError || !userData.user) {
-      return NextResponse.json(
-        { error: userError?.message ?? 'Unable to create user.' },
-        { status: 400 }
-      )
+      return apiError(userError?.message ?? 'Unable to create user.', 400)
     }
 
     const userId = userData.user.id
@@ -65,10 +59,7 @@ export async function POST(request: Request) {
       })
 
     if (linkError || !linkData?.properties?.action_link) {
-      return NextResponse.json(
-        { error: linkError?.message ?? 'Failed to generate verification link.' },
-        { status: 500 }
-      )
+      return apiError(linkError?.message ?? 'Failed to generate verification link.', 500)
     }
 
     const verificationLink = linkData.properties.action_link
@@ -99,10 +90,7 @@ export async function POST(request: Request) {
       .single()
 
     if (workspaceError || !workspace) {
-      return NextResponse.json(
-        { error: workspaceError?.message ?? 'Failed to create workspace.' },
-        { status: 500 }
-      )
+      return apiError(workspaceError?.message ?? 'Failed to create workspace.', 500)
     }
 
     // 5. Add workspace member
@@ -116,7 +104,7 @@ export async function POST(request: Request) {
 
     if (memberError) {
       await admin.from('workspaces').delete().eq('id', workspace.id)
-      return NextResponse.json({ error: memberError.message }, { status: 500 })
+      return apiError(memberError.message, 500)
     }
 
     // 6. Onboarding progress
@@ -135,15 +123,11 @@ export async function POST(request: Request) {
     await sendVerificationEmail(parsed.data.email, verificationLink)
 
     // 8. RETURN redirect
-    return NextResponse.json({
-      success: true,
+    return apiSuccess({
       redirectTo: '/verify-email',
       message: 'User created and verification email sent.',
-    })
+    }, 'User created and verification email sent.')
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Signup failed unexpectedly.' },
-      { status: 500 }
-    )
+    return apiError(error instanceof Error ? error.message : 'Signup failed unexpectedly.', 500)
   }
 }

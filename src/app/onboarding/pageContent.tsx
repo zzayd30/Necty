@@ -73,9 +73,20 @@ export default function PageContent() {
 
     void (async () => {
       try {
-        const progress = await loadProgress();
+        const progressResponse = await loadProgress();
 
-        console.log("[onboarding] progress loaded", progress);
+        console.log("[onboarding] progress loaded", progressResponse);
+
+        if (!progressResponse.success) {
+          console.error("[onboarding] loadProgress failed", progressResponse.message);
+          return;
+        }
+
+        const progress = progressResponse.data;
+        if (!progress) {
+          console.error("[onboarding] loadProgress returned no data");
+          return;
+        }
 
         if (progress.completed) {
           console.log(
@@ -89,7 +100,7 @@ export default function PageContent() {
           goTo(progress.step);
         }
 
-        if (progress.data && Object.keys(progress.data).length) {
+        if (progress?.data && Object.keys(progress.data).length) {
           setData(progress.data);
         }
       } catch (error) {

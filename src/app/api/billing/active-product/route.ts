@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server'
-
+import { apiError, apiSuccess } from '@/lib/api-response'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 type SubscriptionProduct = {
@@ -25,19 +24,19 @@ export async function GET() {
       .eq('code', 'NECTY_PRO_MONTHLY')
       .eq('is_active', true)
       .maybeSingle()) as {
-      data: SubscriptionProduct | null
-      error: { message: string } | null
-    }
+        data: SubscriptionProduct | null
+        error: { message: string } | null
+      }
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return apiError(error.message, 500)
     }
 
-    return NextResponse.json({ product: data })
+    return apiSuccess({ product: data }, 'Active billing product loaded.')
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unable to load billing product.' },
-      { status: 500 }
+    return apiError(
+      error instanceof Error ? error.message : 'Unable to load billing product.',
+      500
     )
   }
 }
